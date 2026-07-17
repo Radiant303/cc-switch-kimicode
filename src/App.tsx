@@ -232,19 +232,8 @@ function App() {
       sharedFeatureApp !== "opencode" &&
       sharedFeatureApp !== "openclaw" &&
       sharedFeatureApp !== "gemini" &&
-      sharedFeatureApp !== "hermes"
-    ) {
-      setCurrentView("providers");
-    }
-  }, [sharedFeatureApp, currentView]);
-
-  // Kimi Code owns its own prompts, Skills and MCP configuration. Keep the
-  // shared CC Switch panels out of that app instead of opening a panel that
-  // cannot project changes into Kimi Code's TOML/home directory.
-  useEffect(() => {
-    if (
-      sharedFeatureApp === "kimi-code" &&
-      ["prompts", "skills", "skillsDiscovery", "mcp"].includes(currentView)
+      sharedFeatureApp !== "hermes" &&
+      sharedFeatureApp !== "kimi-code"
     ) {
       setCurrentView("providers");
     }
@@ -307,9 +296,9 @@ function App() {
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
   const hasSkillsSupport =
-    sharedFeatureApp !== "openclaw" && sharedFeatureApp !== "kimi-code";
-  const hasPromptSupport = sharedFeatureApp !== "kimi-code";
-  const hasMcpSupport = sharedFeatureApp !== "kimi-code";
+    sharedFeatureApp !== "openclaw";
+  const hasPromptSupport = activeApp !== "claude-desktop";
+  const hasMcpSupport = activeApp !== "claude-desktop";
   const hasSessionSupport =
     sharedFeatureApp === "claude" ||
     sharedFeatureApp === "codex" ||
@@ -317,7 +306,8 @@ function App() {
     sharedFeatureApp === "opencode" ||
     sharedFeatureApp === "openclaw" ||
     sharedFeatureApp === "gemini" ||
-    sharedFeatureApp === "hermes";
+    sharedFeatureApp === "hermes" ||
+    sharedFeatureApp === "kimi-code";
 
   const {
     addProvider,

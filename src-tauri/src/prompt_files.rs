@@ -5,12 +5,13 @@ use crate::codex_config::get_codex_auth_path;
 use crate::config::get_claude_settings_path;
 use crate::error::AppError;
 use crate::gemini_config::get_gemini_dir;
+use crate::kimi_code_config::get_kimi_code_home;
 use crate::openclaw_config::get_openclaw_dir;
 use crate::opencode_config::get_opencode_dir;
 
 /// 返回指定应用所使用的提示词文件路径。
 pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
-    if matches!(app, AppType::ClaudeDesktop | AppType::KimiCode) {
+    if matches!(app, AppType::ClaudeDesktop) {
         return Err(AppError::localized(
             "app.prompts_unsupported",
             "当前应用暂不支持 Prompts",
@@ -26,7 +27,8 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
         AppType::OpenCode => get_opencode_dir(),
         AppType::OpenClaw => get_openclaw_dir(),
         AppType::Hermes => crate::hermes_config::get_hermes_dir(),
-        AppType::ClaudeDesktop | AppType::KimiCode => unreachable!("handled above"),
+        AppType::KimiCode => get_kimi_code_home(),
+        AppType::ClaudeDesktop => unreachable!("handled above"),
     };
 
     let filename = match app {
@@ -34,7 +36,8 @@ pub fn prompt_file_path(app: &AppType) -> Result<PathBuf, AppError> {
         AppType::Codex => "AGENTS.md",
         AppType::Gemini => "GEMINI.md",
         AppType::GrokBuild | AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => "AGENTS.md",
-        AppType::ClaudeDesktop | AppType::KimiCode => unreachable!("handled above"),
+        AppType::KimiCode => "AGENTS.md",
+        AppType::ClaudeDesktop => unreachable!("handled above"),
     };
 
     Ok(base_dir.join(filename))

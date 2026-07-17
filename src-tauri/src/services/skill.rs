@@ -19,7 +19,6 @@ use crate::app_config::{AppType, InstalledSkill, SkillApps, UnmanagedSkill};
 use crate::config::get_app_config_dir;
 use crate::database::Database;
 use crate::error::format_skill_error;
-use crate::error::AppError;
 
 // ========== 数据结构 ==========
 
@@ -533,12 +532,7 @@ impl SkillService {
                 }
             }
             AppType::KimiCode => {
-                return Err(AppError::localized(
-                    "app.skills_unsupported",
-                    "Kimi Code 暂不支持由 CC Switch 管理 Skills",
-                    "Kimi Code Skills are not managed by CC Switch",
-                )
-                .into());
+                return Ok(crate::kimi_code_config::get_kimi_code_home().join("skills"));
             }
         }
 

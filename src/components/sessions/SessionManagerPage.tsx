@@ -88,7 +88,8 @@ type ProviderFilter =
   | "opencode"
   | "openclaw"
   | "gemini"
-  | "hermes";
+  | "hermes"
+  | "kimi-code";
 
 type SessionListViewMode = "flat" | "grouped";
 
@@ -1126,6 +1127,16 @@ export function SessionManagerPage({ appId }: { appId: string }) {
                                   size={14}
                                 />
                                 <span>Gemini CLI</span>
+                              </div>
+                            </SelectItem>
+                            <SelectItem value="kimi-code">
+                              <div className="flex items-center gap-2">
+                                <ProviderIcon
+                                  icon="kimi"
+                                  name="kimi-code"
+                                  size={14}
+                                />
+                                <span>Kimi Code</span>
                               </div>
                             </SelectItem>
                           </SelectContent>
