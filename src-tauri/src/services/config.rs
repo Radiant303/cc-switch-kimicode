@@ -89,6 +89,7 @@ impl ConfigService {
         Self::sync_current_provider_for_app(config, &AppType::Codex)?;
         Self::sync_current_provider_for_app(config, &AppType::Gemini)?;
         Self::sync_current_provider_for_app(config, &AppType::GrokBuild)?;
+        Self::sync_current_provider_for_app(config, &AppType::KimiCode)?;
         Ok(())
     }
 
@@ -137,6 +138,11 @@ impl ConfigService {
             }
             AppType::Hermes => {
                 // Hermes uses additive mode, no live sync needed
+            }
+            AppType::KimiCode => {
+                let config_text =
+                    crate::kimi_code_config::provider_config_text(&provider.settings_config)?;
+                crate::kimi_code_config::write_kimi_code_config_text(config_text)?;
             }
         }
 

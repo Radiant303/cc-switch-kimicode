@@ -19,6 +19,7 @@ use crate::app_config::{AppType, InstalledSkill, SkillApps, UnmanagedSkill};
 use crate::config::get_app_config_dir;
 use crate::database::Database;
 use crate::error::format_skill_error;
+use crate::error::AppError;
 
 // ========== 数据结构 ==========
 
@@ -531,6 +532,14 @@ impl SkillService {
                     return Ok(custom.join("skills"));
                 }
             }
+            AppType::KimiCode => {
+                return Err(AppError::localized(
+                    "app.skills_unsupported",
+                    "Kimi Code 暂不支持由 CC Switch 管理 Skills",
+                    "Kimi Code Skills are not managed by CC Switch",
+                )
+                .into());
+            }
         }
 
         // 默认路径：回退到用户主目录下的标准位置。
@@ -547,6 +556,7 @@ impl SkillService {
             AppType::OpenCode => home.join(".config").join("opencode").join("skills"),
             AppType::OpenClaw => home.join(".openclaw").join("skills"),
             AppType::Hermes => crate::hermes_config::get_hermes_dir().join("skills"),
+            AppType::KimiCode => unreachable!("handled above"),
         })
     }
 

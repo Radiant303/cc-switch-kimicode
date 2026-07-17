@@ -10,6 +10,10 @@ export interface QuotaTier {
   resetsAt: string | null;
   usedValueUsd?: number | null;
   maxValueUsd?: number | null;
+  used?: number | null;
+  limit?: number | null;
+  remaining?: number | null;
+  unit?: string | null;
   planLabel?: string | null;
 }
 

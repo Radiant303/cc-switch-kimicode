@@ -882,7 +882,16 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "kimi-code": "Kimi Code"
+  },
+  "kimiCode": {
+    "form": {
+      "config": "Kimi Code config.toml",
+      "configPlaceholder": "default_model = \"managed:kimi-code/kimi-for-coding\"",
+      "configHint": "Edit the complete Kimi Code TOML configuration. It is written to ~/.kimi-code/config.toml; OAuth credentials remain managed by Kimi Code.",
+      "configRequired": "Please enter the Kimi Code config.toml content"
+    }
   },
   "grokBuild": {
     "apiBackend": "API backend",
@@ -2965,6 +2974,7 @@
     "monthly": "Monthly",
     "copilotPremium": "Premium",
     "utilization": "{{value}}%",
+    "quotaDetail": "{{used}} / {{limit}} ({{remaining}} remaining {{unit}}s)",
     "resetsIn": "Resets in {{time}}",
     "extraUsage": "Extra Usage",
     "expired": "Session expired",

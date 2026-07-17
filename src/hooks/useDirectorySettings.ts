@@ -5,7 +5,8 @@ import { homeDir, join } from "@tauri-apps/api/path";
 import { settingsApi, type AppId } from "@/lib/api";
 import type { SettingsFormState } from "./useSettingsForm";
 
-export type DirectoryAppId = Exclude<AppId, "claude-desktop">;
+// Kimi Code uses KIMI_CODE_HOME and has no CC Switch settings override field.
+export type DirectoryAppId = Exclude<AppId, "claude-desktop" | "kimi-code">;
 type AppDirectoryKey =
   | "claude"
   | "codex"

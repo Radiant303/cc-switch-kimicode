@@ -147,6 +147,9 @@ impl McpService {
             AppType::Hermes => {
                 mcp::sync_single_server_to_hermes(&Default::default(), &server.id, &server.server)?;
             }
+            AppType::KimiCode => {
+                log::debug!("Kimi Code manages its own MCP configuration, skipping sync");
+            }
         }
         Ok(())
     }
@@ -182,6 +185,9 @@ impl McpService {
             }
             AppType::Hermes => {
                 mcp::remove_server_from_hermes(id)?;
+            }
+            AppType::KimiCode => {
+                log::debug!("Kimi Code manages its own MCP configuration, skipping remove");
             }
         }
         Ok(())

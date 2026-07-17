@@ -853,7 +853,16 @@
     "grokbuild": "Grok Build",
     "opencode": "OpenCode",
     "openclaw": "OpenClaw",
-    "hermes": "Hermes"
+    "hermes": "Hermes",
+    "kimi-code": "Kimi Code"
+  },
+  "kimiCode": {
+    "form": {
+      "config": "Kimi Code config.toml",
+      "configPlaceholder": "default_model = \"managed:kimi-code/kimi-for-coding\"",
+      "configHint": "編輯 Kimi Code 的完整 TOML 設定。儲存後會寫入 ~/.kimi-code/config.toml；OAuth 登入憑證仍由 Kimi Code 管理。",
+      "configRequired": "請填寫 Kimi Code 的 config.toml 內容"
+    }
   },
   "grokBuild": {
     "apiBackend": "API Backend",
@@ -2937,6 +2946,7 @@
     "monthly": "每月",
     "copilotPremium": "進階請求",
     "utilization": "{{value}}%",
+    "quotaDetail": "已用 {{used}} / {{limit}}（剩餘 {{remaining}} {{unit}}）",
     "resetsIn": "{{time}} 後重設",
     "extraUsage": "超額用量",
     "expired": "工作階段已過期",

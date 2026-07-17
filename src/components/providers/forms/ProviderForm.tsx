@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import {
   buildLocalProxyRequestOverrides,
@@ -122,6 +123,11 @@ import { HERMES_DEFAULT_CONFIG } from "./hooks/useHermesFormState";
 import { resolveManagedAccountId } from "@/lib/authBinding";
 import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 import { useHermesLiveProviderIds } from "@/hooks/useHermes";
+import {
+  KIMI_CODE_DEFAULT_CONFIG,
+  extractKimiCodeToml,
+  serializeKimiCodeToml,
+} from "@/config/kimiCode";
 
 type PresetEntry = {
   id: string;
@@ -393,7 +399,9 @@ function ProviderFormFull({
                 ? OPENCLAW_DEFAULT_CONFIG
                 : appId === "hermes"
                   ? HERMES_DEFAULT_CONFIG
-                  : CLAUDE_DEFAULT_CONFIG,
+                  : appId === "kimi-code"
+                    ? KIMI_CODE_DEFAULT_CONFIG
+                    : CLAUDE_DEFAULT_CONFIG,
       icon: initialData?.icon ?? "",
       iconColor: initialData?.iconColor ?? "",
     }),
@@ -406,6 +414,9 @@ function ProviderFormFull({
     mode: "onSubmit",
   });
   const { isSubmitting } = form.formState;
+  const settingsConfigValue = form.watch("settingsConfig");
+  const kimiCodeToml =
+    appId === "kimi-code" ? extractKimiCodeToml(settingsConfigValue) : "";
 
   const handleSettingsConfigChange = useCallback(
     (config: string) => {
@@ -670,7 +681,9 @@ function ProviderFormFull({
   );
 
   const presetEntries = useMemo(() => {
-    if (appId === "codex") {
+    if (appId === "kimi-code") {
+      return [];
+    } else if (appId === "codex") {
       return codexProviderPresets.map<PresetEntry>((preset, index) => ({
         id: `codex-${index}`,
         preset,
@@ -1033,6 +1046,14 @@ function ProviderFormFull({
       issues.push(
         t("providerForm.fillSupplierName", {
           defaultValue: "请填写供应商名称",
+        }),
+      );
+    }
+
+    if (appId === "kimi-code" && !kimiCodeToml.trim()) {
+      issues.push(
+        t("kimiCode.form.configRequired", {
+          defaultValue: "请填写 Kimi Code 的 config.toml 内容",
         }),
       );
     }
@@ -1861,7 +1882,7 @@ function ProviderFormFull({
           onSubmit={form.handleSubmit(handleSubmit)}
           className="space-y-6 glass rounded-xl p-6 border border-white/10"
         >
-          {!initialData && (
+          {!initialData && appId !== "kimi-code" && (
             <ProviderPresetSelector
               selectedPresetId={selectedPresetId}
               presetEntries={presetEntries}
@@ -2381,6 +2402,39 @@ function ProviderFormFull({
               />
               {settingsConfigErrorField}
             </>
+          ) : appId === "kimi-code" ? (
+            <>
+              <div className="space-y-2">
+                <Label htmlFor="kimi-code-config">
+                  {t("kimiCode.form.config", {
+                    defaultValue: "Kimi Code config.toml",
+                  })}
+                </Label>
+                <Textarea
+                  id="kimi-code-config"
+                  value={kimiCodeToml}
+                  onChange={(event) =>
+                    form.setValue(
+                      "settingsConfig",
+                      serializeKimiCodeToml(event.target.value),
+                      { shouldDirty: true },
+                    )
+                  }
+                  placeholder={t("kimiCode.form.configPlaceholder", {
+                    defaultValue: "default_model = \"managed:kimi-code/kimi-for-coding\"",
+                  })}
+                  className="min-h-[360px] resize-y font-mono text-xs leading-5"
+                  spellCheck={false}
+                />
+                <p className="text-xs text-muted-foreground">
+                  {t("kimiCode.form.configHint", {
+                    defaultValue:
+                      "编辑 Kimi Code 的完整 TOML 配置。保存后会写入 ~/.kimi-code/config.toml；OAuth 登录凭据仍由 Kimi Code 管理。",
+                  })}
+                </p>
+              </div>
+              {settingsConfigErrorField}
+            </>
           ) : appId === "opencode" &&
             (category === "omo" || category === "omo-slim") ? (
             <div className="space-y-2">
@@ -2483,7 +2537,8 @@ function ProviderFormFull({
           {!isAnyOmoCategory &&
             appId !== "opencode" &&
             appId !== "openclaw" &&
-            appId !== "hermes" && (
+            appId !== "hermes" &&
+            appId !== "kimi-code" && (
               <ProviderAdvancedConfig
                 pricingConfig={pricingConfig}
                 onPricingConfigChange={setPricingConfig}

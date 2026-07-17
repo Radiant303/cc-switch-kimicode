@@ -149,6 +149,7 @@ pub(crate) fn build_provider_from_request(
         AppType::OpenCode => build_opencode_settings(request),
         AppType::OpenClaw => build_additive_app_settings(request),
         AppType::Hermes => build_hermes_settings(request),
+        AppType::KimiCode => build_kimi_code_settings(request),
     };
 
     // Build usage script configuration if provided
@@ -471,6 +472,40 @@ fn build_grokbuild_settings(request: &DeepLinkImportRequest) -> serde_json::Valu
             "[models]\ndefault = {model_value}\n\n[model.{model_value}]\nmodel = {model_value}\nbase_url = {endpoint_value}\nname = {name_value}\napi_key = {api_key_value}\napi_backend = \"{}\"\ncontext_window = {}\n",
             crate::grok_config::DEFAULT_API_BACKEND,
             crate::grok_config::DEFAULT_CONTEXT_WINDOW,
+        )
+    })
+}
+
+/// Build a standalone Kimi Code TOML provider for deeplink imports.
+///
+/// Kimi Code stores its provider and model catalog in one TOML document rather
+/// than the JSON-shaped settings used by the other switch-mode apps.
+fn build_kimi_code_settings(request: &DeepLinkImportRequest) -> serde_json::Value {
+    let provider_id = "custom:kimi-code";
+    let model = request
+        .model
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(crate::kimi_code_config::KIMI_CODE_DEFAULT_MODEL)
+        .trim();
+    let endpoint = get_primary_endpoint(request);
+    let endpoint = if endpoint.trim().is_empty() {
+        crate::kimi_code_config::KIMI_CODE_DEFAULT_BASE_URL
+    } else {
+        endpoint.trim().trim_end_matches('/')
+    };
+    let api_key = request.api_key.as_deref().unwrap_or("").trim();
+
+    let provider_id_value = toml_edit::Value::from(provider_id).to_string();
+    let model_value = toml_edit::Value::from(model).to_string();
+    let endpoint_value = toml_edit::Value::from(endpoint).to_string();
+    let api_key_value = toml_edit::Value::from(api_key).to_string();
+    let model_key = format!("{provider_id}/{model}");
+    let model_key_value = toml_edit::Value::from(model_key.as_str()).to_string();
+
+    serde_json::json!({
+        "config": format!(
+            "default_model = {model_key_value}\n\n[providers.{provider_id_value}]\ntype = \"kimi\"\nbase_url = {endpoint_value}\napi_key = {api_key_value}\n\n[models.{model_key_value}]\nprovider = {provider_id_value}\nmodel = {model_value}\nmax_context_size = 262144\n"
         )
     })
 }

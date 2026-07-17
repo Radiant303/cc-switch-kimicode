@@ -50,6 +50,7 @@ export interface ProxyTakeoverStatus {
   opencode: boolean;
   openclaw: boolean;
   hermes: boolean;
+  "kimi-code"?: boolean;
 }
 
 export interface ProviderHealth {

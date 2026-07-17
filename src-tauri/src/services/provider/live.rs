@@ -527,7 +527,8 @@ fn settings_contain_common_config(app_type: &AppType, settings: &Value, snippet:
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
-        | AppType::ClaudeDesktop => false,
+        | AppType::ClaudeDesktop
+        | AppType::KimiCode => false,
     }
 }
 
@@ -601,7 +602,8 @@ pub(crate) fn remove_common_config_from_settings(
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
-        | AppType::ClaudeDesktop => Ok(settings.clone()),
+        | AppType::ClaudeDesktop
+        | AppType::KimiCode => Ok(settings.clone()),
     }
 }
 
@@ -660,7 +662,8 @@ fn apply_common_config_to_settings(
         | AppType::OpenCode
         | AppType::OpenClaw
         | AppType::Hermes
-        | AppType::ClaudeDesktop => Ok(settings.clone()),
+        | AppType::ClaudeDesktop
+        | AppType::KimiCode => Ok(settings.clone()),
     }
 }
 
@@ -954,6 +957,9 @@ pub(crate) enum LiveSnapshot {
         env: Option<HashMap<String, String>>,
         config: Option<Value>,
     },
+    KimiCode {
+        config: Option<String>,
+    },
 }
 
 impl LiveSnapshot {
@@ -1005,6 +1011,14 @@ impl LiveSnapshot {
                         delete_file(&settings_path)?;
                     }
                     _ => {}
+                }
+            }
+            LiveSnapshot::KimiCode { config } => {
+                let path = crate::kimi_code_config::get_kimi_code_config_path();
+                if let Some(text) = config {
+                    crate::kimi_code_config::write_kimi_code_config_text(text)?;
+                } else if path.exists() {
+                    delete_file(&path)?;
                 }
             }
         }
@@ -1161,6 +1175,14 @@ pub(crate) fn write_live_snapshot(app_type: &AppType, provider: &Provider) -> Re
         AppType::Hermes => {
             crate::hermes_config::set_provider(&provider.id, provider.settings_config.clone())?;
             log::debug!("Hermes provider '{}' written to live config", provider.id);
+        }
+        AppType::KimiCode => {
+            let config = crate::kimi_code_config::provider_config_text(&provider.settings_config)?;
+            crate::kimi_code_config::write_kimi_code_config_text(config)?;
+            log::debug!(
+                "Kimi Code provider '{}' written to live config",
+                provider.id
+            );
         }
     }
     Ok(())
@@ -1417,6 +1439,10 @@ pub fn read_live_settings(app_type: AppType) -> Result<Value, AppError> {
             let config = crate::hermes_config::yaml_to_json(&yaml_config)?;
             Ok(config)
         }
+        AppType::KimiCode => {
+            let config = crate::kimi_code_config::read_kimi_code_config_text()?;
+            Ok(json!({ "config": config }))
+        }
     }
 }
 
@@ -1518,6 +1544,10 @@ pub fn import_default_config(state: &AppState, app_type: AppType) -> Result<bool
         // OpenCode, OpenClaw and Hermes use additive mode and are handled by early return above
         AppType::OpenCode | AppType::OpenClaw | AppType::Hermes => {
             unreachable!("additive mode apps are handled by early return")
+        }
+        AppType::KimiCode => {
+            let config = crate::kimi_code_config::read_kimi_code_config_text()?;
+            json!({ "config": config })
         }
     };
 

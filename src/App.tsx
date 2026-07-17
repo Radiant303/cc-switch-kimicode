@@ -131,6 +131,7 @@ const VALID_APPS: AppId[] = [
   "opencode",
   "openclaw",
   "hermes",
+  "kimi-code",
 ];
 
 const getInitialApp = (): AppId => {
@@ -199,6 +200,7 @@ function App() {
     opencode: true,
     openclaw: true,
     hermes: true,
+    "kimi-code": true,
   };
 
   const getFirstVisibleApp = (): AppId => {
@@ -210,6 +212,7 @@ function App() {
     if (visibleApps.opencode) return "opencode";
     if (visibleApps.openclaw) return "openclaw";
     if (visibleApps.hermes) return "hermes";
+    if (visibleApps["kimi-code"]) return "kimi-code";
     return "claude"; // fallback
   };
 
@@ -230,6 +233,18 @@ function App() {
       sharedFeatureApp !== "openclaw" &&
       sharedFeatureApp !== "gemini" &&
       sharedFeatureApp !== "hermes"
+    ) {
+      setCurrentView("providers");
+    }
+  }, [sharedFeatureApp, currentView]);
+
+  // Kimi Code owns its own prompts, Skills and MCP configuration. Keep the
+  // shared CC Switch panels out of that app instead of opening a panel that
+  // cannot project changes into Kimi Code's TOML/home directory.
+  useEffect(() => {
+    if (
+      sharedFeatureApp === "kimi-code" &&
+      ["prompts", "skills", "skillsDiscovery", "mcp"].includes(currentView)
     ) {
       setCurrentView("providers");
     }
@@ -291,7 +306,10 @@ function App() {
       currentView === "openclawAgents");
   const { data: openclawHealthWarnings = [] } =
     useOpenClawHealth(isOpenClawView);
-  const hasSkillsSupport = sharedFeatureApp !== "openclaw";
+  const hasSkillsSupport =
+    sharedFeatureApp !== "openclaw" && sharedFeatureApp !== "kimi-code";
+  const hasPromptSupport = sharedFeatureApp !== "kimi-code";
+  const hasMcpSupport = sharedFeatureApp !== "kimi-code";
   const hasSessionSupport =
     sharedFeatureApp === "claude" ||
     sharedFeatureApp === "codex" ||
@@ -1528,7 +1546,13 @@ function App() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setCurrentView("prompts")}
-                                className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 w-8 px-2"
+                                className={cn(
+                                  "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                                  "transition-all duration-200 ease-in-out overflow-hidden",
+                                  hasPromptSupport
+                                    ? "opacity-100 w-8 scale-100 px-2"
+                                    : "opacity-0 w-0 scale-75 pointer-events-none px-0 -ml-1",
+                                )}
                                 title={t("prompts.manage")}
                               >
                                 <Book className="w-4 h-4" />
@@ -1552,7 +1576,13 @@ function App() {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => setCurrentView("mcp")}
-                                className="text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5 w-8 px-2"
+                                className={cn(
+                                  "text-muted-foreground hover:text-foreground hover:bg-black/5 dark:hover:bg-white/5",
+                                  "transition-all duration-200 ease-in-out overflow-hidden",
+                                  hasMcpSupport
+                                    ? "opacity-100 w-8 scale-100 px-2"
+                                    : "opacity-0 w-0 scale-75 pointer-events-none px-0 -ml-1",
+                                )}
                                 title={t("mcp.title")}
                               >
                                 <McpIcon size={16} />

@@ -74,6 +74,13 @@ function isOfficialProvider(provider: Provider, appId: AppId): boolean {
     return true;
   }
 
+  // Kimi Code's provider is an OAuth-backed official platform entry. Its
+  // config.toml intentionally has a managed provider block, so checking for
+  // an empty API key/base URL would incorrectly classify it as custom.
+  if (appId === "kimi-code") {
+    return true;
+  }
+
   const config = provider.settingsConfig as Record<string, any>;
   if (appId === "claude") {
     const baseUrl = config?.env?.ANTHROPIC_BASE_URL;
@@ -196,12 +203,13 @@ export function ProviderCard({
   const usageEnabled = provider.meta?.usage_script?.enabled ?? false;
   const isOfficial = isOfficialProvider(provider, appId);
   const supportsOfficialSubscription =
-    isOfficial && ["claude", "codex", "gemini"].includes(appId);
+    isOfficial && ["claude", "codex", "gemini", "kimi-code"].includes(appId);
   const isOfficialSubscriptionUsage =
     provider.meta?.usage_script?.templateType ===
     TEMPLATE_TYPES.OFFICIAL_SUBSCRIPTION;
   const officialSubscriptionEnabled =
-    supportsOfficialSubscription && usageEnabled && isOfficialSubscriptionUsage;
+    supportsOfficialSubscription &&
+    (appId === "kimi-code" || (usageEnabled && isOfficialSubscriptionUsage));
   // 官方判定只认显式 category === "official"（SSOT），不回退 isOfficial 的空字段启发式。
   // 理由（此判定曾在「纯 category ↔ category+isOfficial 回退」间反复，结论钉死于此）：
   //  1) 封号保护是高代价决策，不该建立在「base_url/key 缺失」这种脆弱信号上——它无法区分

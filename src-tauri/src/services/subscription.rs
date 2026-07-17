@@ -13,7 +13,7 @@ use crate::config;
 // ── 数据类型 ──────────────────────────────────────────────
 
 /// 凭据状态
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CredentialStatus {
     Valid,
@@ -38,6 +38,18 @@ pub struct QuotaTier {
     /// ZenMux: 窗口上限（USD）
     #[serde(skip_serializing_if = "Option::is_none")]
     pub max_value_usd: Option<f64>,
+    /// 已用数量（例如 token 数）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub used: Option<f64>,
+    /// 窗口总量（例如 token 上限）
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub limit: Option<f64>,
+    /// 窗口剩余数量
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remaining: Option<f64>,
+    /// 数量单位，例如 token、USD
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub unit: Option<String>,
 }
 
 /// 超额使用信息
@@ -400,6 +412,10 @@ async fn query_claude_quota(access_token: &str) -> Result<SubscriptionQuota, Str
                         resets_at: w.resets_at,
                         used_value_usd: None,
                         max_value_usd: None,
+                        used: None,
+                        limit: None,
+                        remaining: None,
+                        unit: None,
                     });
                 }
             }
@@ -420,6 +436,10 @@ async fn query_claude_quota(access_token: &str) -> Result<SubscriptionQuota, Str
                         resets_at: w.resets_at,
                         used_value_usd: None,
                         max_value_usd: None,
+                        used: None,
+                        limit: None,
+                        remaining: None,
+                        unit: None,
                     });
                 }
             }
@@ -743,6 +763,10 @@ pub(crate) async fn query_codex_quota(
                     resets_at: window.reset_at.and_then(unix_ts_to_iso),
                     used_value_usd: None,
                     max_value_usd: None,
+                    used: None,
+                    limit: None,
+                    remaining: None,
+                    unit: None,
                 });
             }
         }
@@ -1206,6 +1230,10 @@ async fn query_gemini_quota(access_token: &str) -> Result<SubscriptionQuota, Str
             resets_at: reset_time,
             used_value_usd: None,
             max_value_usd: None,
+            used: None,
+            limit: None,
+            remaining: None,
+            unit: None,
         })
         .collect();
 
@@ -1221,6 +1249,429 @@ async fn query_gemini_quota(access_token: &str) -> Result<SubscriptionQuota, Str
         error: None,
         queried_at: Some(now_millis()),
     })
+}
+
+// ── Kimi Code OAuth 用量查询 ───────────────────────────────
+
+#[derive(Debug, Clone)]
+struct KimiCodeCredentials {
+    access_token: Option<String>,
+    refresh_token: Option<String>,
+    status: CredentialStatus,
+    message: Option<String>,
+}
+
+fn kimi_number(value: Option<&serde_json::Value>) -> Option<f64> {
+    value.and_then(|value| value.as_f64().or_else(|| value.as_str()?.parse().ok()))
+}
+
+fn kimi_reset_time(value: Option<&serde_json::Value>) -> Option<String> {
+    let value = value?;
+    if let Some(text) = value.as_str() {
+        return (!text.trim().is_empty()).then(|| text.to_string());
+    }
+    let timestamp = value.as_i64()?;
+    if timestamp <= 0 {
+        return None;
+    }
+    let millis = if timestamp < 1_000_000_000_000 {
+        timestamp.saturating_mul(1000)
+    } else {
+        timestamp
+    };
+    chrono::DateTime::from_timestamp_millis(millis).map(|date| date.to_rfc3339())
+}
+
+fn kimi_value<'a>(object: &'a serde_json::Value, keys: &[&str]) -> Option<&'a serde_json::Value> {
+    keys.iter().find_map(|key| object.get(*key))
+}
+
+fn kimi_usage_row(raw: &serde_json::Value) -> Option<(f64, f64, f64, Option<String>)> {
+    let limit = kimi_number(kimi_value(raw, &["limit", "max", "total"]));
+    let mut used = kimi_number(kimi_value(raw, &["used", "consumed"]));
+    let mut remaining = kimi_number(kimi_value(raw, &["remaining", "left"]));
+
+    if used.is_none() {
+        if let (Some(limit), Some(remaining_value)) = (limit, remaining) {
+            used = Some((limit - remaining_value).max(0.0));
+        }
+    }
+    if remaining.is_none() {
+        if let (Some(limit), Some(used_value)) = (limit, used) {
+            remaining = Some((limit - used_value).max(0.0));
+        }
+    }
+
+    let limit = limit?;
+    let used = used.unwrap_or(0.0).max(0.0);
+    let remaining = remaining.unwrap_or_else(|| (limit - used).max(0.0));
+    let reset = kimi_reset_time(kimi_value(
+        raw,
+        &["resetAt", "reset_at", "resetTime", "reset_time"],
+    ));
+    Some((used, limit, remaining, reset))
+}
+
+fn kimi_limit_is_five_hour(
+    item: &serde_json::Value,
+    detail: &serde_json::Value,
+    window: &serde_json::Value,
+) -> bool {
+    let label = kimi_value(item, &["name", "title", "scope"])
+        .or_else(|| kimi_value(detail, &["name", "title", "scope"]))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_lowercase();
+    if label.contains("5h")
+        || label.contains("5 h")
+        || label.contains("5hour")
+        || label.contains("5 hour")
+        || label.contains("five hour")
+    {
+        return true;
+    }
+
+    let duration = kimi_number(kimi_value(window, &["duration"]))
+        .or_else(|| kimi_number(kimi_value(item, &["duration"])))
+        .or_else(|| kimi_number(kimi_value(detail, &["duration"])));
+    let unit = kimi_value(window, &["timeUnit"])
+        .or_else(|| kimi_value(item, &["timeUnit"]))
+        .or_else(|| kimi_value(detail, &["timeUnit"]))
+        .and_then(serde_json::Value::as_str)
+        .unwrap_or_default()
+        .to_ascii_uppercase();
+
+    (unit.contains("MINUTE") && duration == Some(300.0))
+        || (unit.contains("HOUR") && duration == Some(5.0))
+        || duration == Some(18_000.0)
+}
+
+fn kimi_code_quota_from_body(body: &serde_json::Value) -> SubscriptionQuota {
+    let mut tiers = Vec::new();
+    let mut five_hour_seen = false;
+
+    if let Some(limits) = body.get("limits").and_then(serde_json::Value::as_array) {
+        for (index, item) in limits.iter().enumerate() {
+            let detail = item.get("detail").unwrap_or(item);
+            let window = item.get("window").unwrap_or(&serde_json::Value::Null);
+            let Some((used, limit, remaining, resets_at)) = kimi_usage_row(detail) else {
+                continue;
+            };
+
+            // Kimi 的 limits 通常按 5 小时窗口排在首位；优先使用显式
+            // duration/name 识别，只有没有标签时才使用首项兜底。
+            let is_five_hour =
+                kimi_limit_is_five_hour(item, detail, window) || (index == 0 && limits.len() > 0);
+            if !is_five_hour || five_hour_seen {
+                continue;
+            }
+
+            tiers.push(QuotaTier {
+                name: TIER_FIVE_HOUR.to_string(),
+                utilization: if limit > 0.0 {
+                    (used / limit * 100.0).clamp(0.0, 100.0)
+                } else {
+                    0.0
+                },
+                resets_at,
+                used_value_usd: None,
+                max_value_usd: None,
+                used: Some(used),
+                limit: Some(limit),
+                remaining: Some(remaining),
+                unit: Some("token".to_string()),
+            });
+            five_hour_seen = true;
+        }
+    }
+
+    // `usage` is Kimi Code 的周额度汇总；若没有汇总，再尝试从 limits 中找
+    // 一个显式周窗口，避免重复显示 5 小时窗口。
+    let weekly = body.get("usage").and_then(kimi_usage_row).or_else(|| {
+        body.get("limits")
+            .and_then(serde_json::Value::as_array)
+            .and_then(|limits| {
+                limits.iter().find_map(|item| {
+                    let detail = item.get("detail").unwrap_or(item);
+                    let window = item.get("window").unwrap_or(&serde_json::Value::Null);
+                    if kimi_limit_is_five_hour(item, detail, window) {
+                        None
+                    } else {
+                        kimi_usage_row(detail)
+                    }
+                })
+            })
+    });
+
+    if let Some((used, limit, remaining, resets_at)) = weekly {
+        tiers.push(QuotaTier {
+            name: TIER_WEEKLY_LIMIT.to_string(),
+            utilization: if limit > 0.0 {
+                (used / limit * 100.0).clamp(0.0, 100.0)
+            } else {
+                0.0
+            },
+            resets_at,
+            used_value_usd: None,
+            max_value_usd: None,
+            used: Some(used),
+            limit: Some(limit),
+            remaining: Some(remaining),
+            unit: Some("token".to_string()),
+        });
+    }
+
+    let extra_usage = body
+        .get("boosterWallet")
+        .and_then(|wallet| wallet.get("monthlyChargeLimitEnabled"))
+        .and_then(serde_json::Value::as_bool)
+        .map(|enabled| ExtraUsage {
+            is_enabled: enabled,
+            monthly_limit: body
+                .pointer("/boosterWallet/monthlyChargeLimit/priceInCents")
+                .and_then(|value| kimi_number(Some(value)))
+                .map(|value| value / 100.0),
+            used_credits: body
+                .pointer("/boosterWallet/monthlyUsed/priceInCents")
+                .and_then(|value| kimi_number(Some(value)))
+                .map(|value| value / 100.0),
+            utilization: None,
+            currency: body
+                .pointer("/boosterWallet/monthlyChargeLimit/currency")
+                .and_then(serde_json::Value::as_str)
+                .or_else(|| {
+                    body.pointer("/boosterWallet/monthlyUsed/currency")
+                        .and_then(serde_json::Value::as_str)
+                })
+                .map(str::to_string),
+        });
+
+    SubscriptionQuota {
+        tool: "kimi-code".to_string(),
+        credential_status: CredentialStatus::Valid,
+        credential_message: None,
+        success: true,
+        tiers,
+        extra_usage,
+        error: None,
+        queried_at: Some(now_millis()),
+    }
+}
+
+fn kimi_code_token_expired(value: Option<&serde_json::Value>) -> bool {
+    let Some(value) = value else { return false };
+    if let Some(text) = value.as_str() {
+        let text = text.trim();
+        if text.is_empty() {
+            return false;
+        }
+        return chrono::DateTime::parse_from_rfc3339(text)
+            .map(|date| date.timestamp_millis() < now_millis())
+            .unwrap_or(false);
+    }
+
+    let Some(mut timestamp) = kimi_number(Some(value)) else {
+        return false;
+    };
+    // Kimi uses 0 to mean “unknown expiry”.
+    if timestamp <= 0.0 {
+        return false;
+    }
+    if timestamp > 1_000_000_000_000.0 {
+        timestamp /= 1000.0;
+    }
+    timestamp < (now_millis() as f64 / 1000.0)
+}
+
+fn parse_kimi_code_credentials_json(content: &str) -> KimiCodeCredentials {
+    let value: serde_json::Value = match serde_json::from_str(content) {
+        Ok(value) => value,
+        Err(error) => {
+            return KimiCodeCredentials {
+                access_token: None,
+                refresh_token: None,
+                status: CredentialStatus::ParseError,
+                message: Some(format!("Failed to parse Kimi Code credentials: {error}")),
+            }
+        }
+    };
+
+    let access_token = value
+        .get("access_token")
+        .or_else(|| value.get("accessToken"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string);
+    let refresh_token = value
+        .get("refresh_token")
+        .or_else(|| value.get("refreshToken"))
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| !token.is_empty())
+        .map(str::to_string);
+
+    let Some(access_token) = access_token else {
+        return KimiCodeCredentials {
+            access_token: None,
+            refresh_token,
+            status: CredentialStatus::ParseError,
+            message: Some("access_token is empty or missing".to_string()),
+        };
+    };
+
+    let expired =
+        kimi_code_token_expired(value.get("expires_at").or_else(|| value.get("expiresAt")));
+    KimiCodeCredentials {
+        access_token: Some(access_token),
+        refresh_token,
+        status: if expired {
+            CredentialStatus::Expired
+        } else {
+            CredentialStatus::Valid
+        },
+        message: expired.then(|| "Kimi Code OAuth token has expired".to_string()),
+    }
+}
+
+fn read_kimi_code_credentials() -> KimiCodeCredentials {
+    let path = crate::kimi_code_config::get_kimi_code_credentials_path();
+    if !path.exists() {
+        return KimiCodeCredentials {
+            access_token: None,
+            refresh_token: None,
+            status: CredentialStatus::NotFound,
+            message: None,
+        };
+    }
+
+    match std::fs::read_to_string(&path) {
+        Ok(content) => parse_kimi_code_credentials_json(&content),
+        Err(error) => KimiCodeCredentials {
+            access_token: None,
+            refresh_token: None,
+            status: CredentialStatus::ParseError,
+            message: Some(format!("Failed to read Kimi Code credentials: {error}")),
+        },
+    }
+}
+
+async fn refresh_kimi_code_token(refresh_token: &str, oauth_host: &str) -> Result<String, String> {
+    const KIMI_OAUTH_CLIENT_ID: &str = "17e5f671-d194-4dfb-9706-5516cb48c098";
+    let client = crate::proxy::http_client::get();
+    let response = client
+        .post(format!(
+            "{}/api/oauth/token",
+            oauth_host.trim_end_matches('/')
+        ))
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .form(&[
+            ("client_id", KIMI_OAUTH_CLIENT_ID),
+            ("grant_type", "refresh_token"),
+            ("refresh_token", refresh_token),
+        ])
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|error| format!("Network error while refreshing Kimi Code token: {error}"))?;
+
+    let status = response.status();
+    let raw = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Failed to read Kimi Code refresh response: {error}"))?;
+    if !status.is_success() {
+        return Err(format!("Kimi Code token refresh failed (HTTP {status})"));
+    }
+
+    let payload: serde_json::Value = serde_json::from_slice(&raw)
+        .map_err(|error| format!("Failed to parse Kimi Code refresh response: {error}"))?;
+    let access_token = payload
+        .get("access_token")
+        .and_then(serde_json::Value::as_str)
+        .filter(|token| !token.is_empty())
+        .ok_or_else(|| "Kimi Code refresh response has no access_token".to_string())?;
+
+    // 原子写入由 config::write_json_file 提供；更新时保留旧 refresh_token，
+    // 因为 OAuth 服务偶尔不会在刷新响应中再次返回它。
+    let path = crate::kimi_code_config::get_kimi_code_credentials_path();
+    let mut stored: serde_json::Value = std::fs::read_to_string(&path)
+        .ok()
+        .and_then(|content| serde_json::from_str(&content).ok())
+        .unwrap_or_else(|| serde_json::json!({}));
+    if let Some(object) = stored.as_object_mut() {
+        object.insert(
+            "access_token".to_string(),
+            serde_json::Value::String(access_token.to_string()),
+        );
+        if let Some(new_refresh_token) = payload
+            .get("refresh_token")
+            .and_then(serde_json::Value::as_str)
+            .filter(|token| !token.is_empty())
+        {
+            object.insert(
+                "refresh_token".to_string(),
+                serde_json::Value::String(new_refresh_token.to_string()),
+            );
+        }
+        if let Some(expires_in) = kimi_number(payload.get("expires_in")) {
+            object.insert(
+                "expires_at".to_string(),
+                serde_json::Value::from((now_millis() as f64 / 1000.0 + expires_in) as i64),
+            );
+        }
+        if let Some(token_type) = payload
+            .get("token_type")
+            .and_then(serde_json::Value::as_str)
+        {
+            object.insert(
+                "token_type".to_string(),
+                serde_json::Value::String(token_type.to_string()),
+            );
+        }
+    }
+    crate::config::write_json_file(&path, &stored)
+        .map_err(|error| format!("Failed to persist refreshed Kimi Code token: {error}"))?;
+
+    Ok(access_token.to_string())
+}
+
+async fn query_kimi_code_quota(
+    access_token: &str,
+    base_url: &str,
+) -> Result<SubscriptionQuota, String> {
+    let client = crate::proxy::http_client::get();
+    let response = client
+        .get(format!("{}/usages", base_url.trim_end_matches('/')))
+        .header("Authorization", format!("Bearer {access_token}"))
+        .header("Accept", "application/json")
+        .timeout(std::time::Duration::from_secs(15))
+        .send()
+        .await
+        .map_err(|error| format!("Network error: {error}"))?;
+
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+        return Ok(SubscriptionQuota::error(
+            "kimi-code",
+            CredentialStatus::Expired,
+            format!("Authentication failed (HTTP {status}). Please run /login in Kimi Code."),
+        ));
+    }
+    if !status.is_success() {
+        return Ok(SubscriptionQuota::error(
+            "kimi-code",
+            CredentialStatus::Valid,
+            format!("Kimi Code usage API returned HTTP {status}"),
+        ));
+    }
+
+    let raw = response
+        .bytes()
+        .await
+        .map_err(|error| format!("Failed to read Kimi Code usage response: {error}"))?;
+    let body: serde_json::Value = serde_json::from_slice(&raw)
+        .map_err(|error| format!("Failed to parse Kimi Code usage response: {error}"))?;
+    Ok(kimi_code_quota_from_body(&body))
 }
 
 // ── 入口函数 ──────────────────────────────────────────────
@@ -1340,6 +1791,70 @@ pub async fn get_subscription_quota(tool: &str) -> Result<SubscriptionQuota, Str
                 }
             }
         }
+        "kimi-code" => {
+            let runtime_auth = crate::kimi_code_config::get_kimi_code_runtime_auth();
+            let credentials = read_kimi_code_credentials();
+            match credentials.status {
+                CredentialStatus::NotFound => Ok(SubscriptionQuota::not_found("kimi-code")),
+                CredentialStatus::ParseError => Ok(SubscriptionQuota::error(
+                    "kimi-code",
+                    CredentialStatus::ParseError,
+                    credentials
+                        .message
+                        .unwrap_or_else(|| "Failed to parse Kimi Code credentials".to_string()),
+                )),
+                CredentialStatus::Valid | CredentialStatus::Expired => {
+                    let Some(token) = credentials.access_token else {
+                        return Ok(SubscriptionQuota::error(
+                            "kimi-code",
+                            CredentialStatus::Expired,
+                            credentials.message.unwrap_or_else(|| {
+                                "Kimi Code OAuth token is unavailable".to_string()
+                            }),
+                        ));
+                    };
+
+                    let result = query_kimi_code_quota(&token, &runtime_auth.base_url).await?;
+                    if result.success {
+                        return Ok(result);
+                    }
+
+                    // Access token 401/403 时只使用现有 refresh_token 刷新，
+                    // 刷新失败返回过期状态，不泄露任何 token 内容。
+                    if result.credential_status == CredentialStatus::Expired {
+                        if let Some(refresh_token) = credentials.refresh_token.as_deref() {
+                            match refresh_kimi_code_token(refresh_token, &runtime_auth.oauth_host)
+                                .await
+                            {
+                                Ok(new_token) => {
+                                    return query_kimi_code_quota(
+                                        &new_token,
+                                        &runtime_auth.base_url,
+                                    )
+                                    .await
+                                }
+                                Err(error) => {
+                                    return Ok(SubscriptionQuota::error(
+                                        "kimi-code",
+                                        CredentialStatus::Expired,
+                                        error,
+                                    ));
+                                }
+                            }
+                        }
+                        return Ok(SubscriptionQuota::error(
+                            "kimi-code",
+                            CredentialStatus::Expired,
+                            credentials.message.unwrap_or_else(|| {
+                                "Kimi Code OAuth token has expired; please run /login".to_string()
+                            }),
+                        ));
+                    }
+
+                    Ok(result)
+                }
+            }
+        }
         _ => Ok(SubscriptionQuota::not_found(tool)),
     }
 }
@@ -1368,5 +1883,115 @@ mod tests {
         // 其他窗口按小时/天回退命名
         assert_eq!(window_seconds_to_tier_name(3600), "1_hour");
         assert_eq!(window_seconds_to_tier_name(86400), "1_day");
+    }
+
+    #[test]
+    fn kimi_credentials_accept_seconds_milliseconds_and_unknown_expiry() {
+        let future_seconds = now_millis() / 1000 + 3600;
+        let future_millis = now_millis() + 3600 * 1000;
+        let future_iso = (chrono::Utc::now() + chrono::Duration::hours(1)).to_rfc3339();
+
+        let seconds = parse_kimi_code_credentials_json(&format!(
+            r#"{{"access_token":"access-seconds","refresh_token":"refresh","expires_at":{future_seconds}}}"#
+        ));
+        assert_eq!(seconds.status, CredentialStatus::Valid);
+        assert_eq!(seconds.access_token.as_deref(), Some("access-seconds"));
+        assert_eq!(seconds.refresh_token.as_deref(), Some("refresh"));
+
+        let millis = parse_kimi_code_credentials_json(&format!(
+            r#"{{"accessToken":"access-millis","expiresAt":{future_millis}}}"#
+        ));
+        assert_eq!(millis.status, CredentialStatus::Valid);
+        assert_eq!(millis.access_token.as_deref(), Some("access-millis"));
+
+        let iso = parse_kimi_code_credentials_json(&format!(
+            r#"{{"access_token":"access-iso","expires_at":"{future_iso}"}}"#
+        ));
+        assert_eq!(iso.status, CredentialStatus::Valid);
+        assert_eq!(iso.access_token.as_deref(), Some("access-iso"));
+
+        let unknown =
+            parse_kimi_code_credentials_json(r#"{"access_token":"access-unknown","expires_at":0}"#);
+        assert_eq!(unknown.status, CredentialStatus::Valid);
+    }
+
+    #[test]
+    fn kimi_credentials_mark_expired_tokens_without_exposing_token_data() {
+        let expired = parse_kimi_code_credentials_json(&format!(
+            r#"{{"access_token":"secret-value","expires_at":{}}}"#,
+            now_millis() / 1000 - 60
+        ));
+
+        assert_eq!(expired.status, CredentialStatus::Expired);
+        assert_eq!(expired.access_token.as_deref(), Some("secret-value"));
+        assert_eq!(
+            expired.message.as_deref(),
+            Some("Kimi Code OAuth token has expired")
+        );
+    }
+
+    #[test]
+    fn kimi_usage_parses_five_hour_weekly_and_remaining_values() {
+        let reset_seconds = now_millis() / 1000 + 3600;
+        let body = serde_json::json!({
+            "limits": [
+                {
+                    "detail": {
+                        "used": 1_234,
+                        "limit": 100_000,
+                        "resetAt": reset_seconds
+                    },
+                    "window": { "duration": 300, "timeUnit": "MINUTE" }
+                }
+            ],
+            "usage": {
+                "remaining": 98_000,
+                "limit": 100_000,
+                "resetAt": reset_seconds * 1000
+            }
+        });
+
+        let quota = kimi_code_quota_from_body(&body);
+        assert!(quota.success);
+        assert_eq!(quota.tiers.len(), 2);
+
+        let five_hour = quota
+            .tiers
+            .iter()
+            .find(|tier| tier.name == TIER_FIVE_HOUR)
+            .unwrap();
+        assert_eq!(five_hour.used, Some(1_234.0));
+        assert_eq!(five_hour.limit, Some(100_000.0));
+        assert_eq!(five_hour.remaining, Some(98_766.0));
+        assert_eq!(five_hour.unit.as_deref(), Some("token"));
+        assert!(five_hour.resets_at.as_deref().unwrap().contains('T'));
+
+        let weekly = quota
+            .tiers
+            .iter()
+            .find(|tier| tier.name == TIER_WEEKLY_LIMIT)
+            .unwrap();
+        assert_eq!(weekly.used, Some(2_000.0));
+        assert_eq!(weekly.remaining, Some(98_000.0));
+        assert_eq!(weekly.utilization, 2.0);
+    }
+
+    #[test]
+    fn kimi_usage_can_derive_remaining_from_used_and_used_from_remaining() {
+        let from_used = kimi_usage_row(&serde_json::json!({
+            "used": 25,
+            "limit": 100
+        }))
+        .unwrap();
+        assert_eq!(from_used.0, 25.0);
+        assert_eq!(from_used.2, 75.0);
+
+        let from_remaining = kimi_usage_row(&serde_json::json!({
+            "remaining": 60,
+            "limit": 100
+        }))
+        .unwrap();
+        assert_eq!(from_remaining.0, 40.0);
+        assert_eq!(from_remaining.2, 60.0);
     }
 }

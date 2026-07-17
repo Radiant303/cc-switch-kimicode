@@ -2999,6 +2999,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(&provider.settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(&provider.settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::KimiCode => Ok(String::new()), // Kimi Code stores its full TOML config
         }
     }
 
@@ -3016,6 +3017,7 @@ impl ProviderService {
             AppType::OpenCode => Self::extract_opencode_common_config(settings_config),
             AppType::OpenClaw => Self::extract_openclaw_common_config(settings_config),
             AppType::Hermes => Ok(String::new()), // Hermes doesn't use common config snippets
+            AppType::KimiCode => Ok(String::new()), // Kimi Code stores its full TOML config
         }
     }
 
@@ -3535,6 +3537,11 @@ impl ProviderService {
                     ));
                 }
             }
+            AppType::KimiCode => {
+                let config =
+                    crate::kimi_code_config::provider_config_text(&provider.settings_config)?;
+                crate::kimi_code_config::validate_kimi_code_config_text(config)?;
+            }
         }
 
         // Validate and clean UsageScript configuration (common for all app types)
@@ -3763,6 +3770,9 @@ impl ProviderService {
 
                 Ok((api_key, base_url))
             }
+            AppType::KimiCode => Ok(crate::kimi_code_config::extract_credentials(
+                &provider.settings_config,
+            )),
         }
     }
 }

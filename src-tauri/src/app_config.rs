@@ -33,6 +33,7 @@ impl McpApps {
             AppType::OpenClaw => false, // OpenClaw doesn't support MCP
             AppType::Hermes => self.hermes,
             AppType::ClaudeDesktop => false,
+            AppType::KimiCode => false, // Kimi Code manages its own MCP configuration
         }
     }
 
@@ -47,6 +48,7 @@ impl McpApps {
             AppType::OpenClaw => {} // OpenClaw doesn't support MCP, ignore
             AppType::Hermes => self.hermes = enabled,
             AppType::ClaudeDesktop => {} // Claude Desktop 3P provider config doesn't support MCP here
+            AppType::KimiCode => {}      // Kimi Code manages its own MCP configuration
         }
     }
 
@@ -114,6 +116,7 @@ impl SkillApps {
             AppType::Hermes => self.hermes,
             AppType::OpenClaw => false, // OpenClaw doesn't support Skills
             AppType::ClaudeDesktop => false,
+            AppType::KimiCode => false, // Kimi Code has a separate skill system
         }
     }
 
@@ -128,6 +131,7 @@ impl SkillApps {
             AppType::Hermes => self.hermes = enabled,
             AppType::OpenClaw => {} // OpenClaw doesn't support Skills, ignore
             AppType::ClaudeDesktop => {} // Claude Desktop 3P profiles don't use CC Switch skill sync
+            AppType::KimiCode => {}      // Kimi Code has a separate skill system
         }
     }
 
@@ -381,6 +385,8 @@ pub enum AppType {
     OpenCode,
     OpenClaw,
     Hermes,
+    #[serde(rename = "kimi-code", alias = "kimi_code", alias = "kimiCode")]
+    KimiCode,
 }
 
 impl AppType {
@@ -394,6 +400,7 @@ impl AppType {
             AppType::OpenCode => "opencode",
             AppType::OpenClaw => "openclaw",
             AppType::Hermes => "hermes",
+            AppType::KimiCode => "kimi-code",
         }
     }
 
@@ -419,6 +426,7 @@ impl AppType {
             AppType::OpenCode,
             AppType::OpenClaw,
             AppType::Hermes,
+            AppType::KimiCode,
         ]
         .into_iter()
     }
@@ -438,10 +446,11 @@ impl FromStr for AppType {
             "opencode" => Ok(AppType::OpenCode),
             "openclaw" => Ok(AppType::OpenClaw),
             "hermes" => Ok(AppType::Hermes),
+            "kimi-code" | "kimi_code" | "kimicode" | "kimi" => Ok(AppType::KimiCode),
             other => Err(AppError::localized(
                 "unsupported_app",
                 format!("不支持的应用标识: '{other}'。可选值: claude, claude-desktop, codex, gemini, grokbuild, opencode, openclaw, hermes。"),
-                format!("Unsupported app id: '{other}'. Allowed: claude, claude-desktop, codex, gemini, grokbuild, opencode, openclaw, hermes."),
+                format!("Unsupported app id: '{other}'. Allowed: claude, claude-desktop, codex, gemini, grokbuild, opencode, openclaw, hermes, kimi-code."),
             )),
         }
     }
@@ -481,6 +490,7 @@ impl CommonConfigSnippets {
             AppType::OpenCode => self.opencode.as_ref(),
             AppType::OpenClaw => self.openclaw.as_ref(),
             AppType::Hermes => self.hermes.as_ref(),
+            AppType::KimiCode => None,
         }
     }
 
@@ -495,6 +505,7 @@ impl CommonConfigSnippets {
             AppType::OpenCode => self.opencode = snippet,
             AppType::OpenClaw => self.openclaw = snippet,
             AppType::Hermes => self.hermes = snippet,
+            AppType::KimiCode => {}
         }
     }
 }
@@ -539,6 +550,7 @@ impl Default for MultiAppConfig {
         apps.insert("opencode".to_string(), ProviderManager::default());
         apps.insert("openclaw".to_string(), ProviderManager::default());
         apps.insert("hermes".to_string(), ProviderManager::default());
+        apps.insert("kimi-code".to_string(), ProviderManager::default());
 
         Self {
             version: 2,
@@ -627,6 +639,14 @@ impl MultiAppConfig {
             updated = true;
         }
 
+        // 确保 Kimi Code 应用存在（兼容旧配置文件）
+        if !config.apps.contains_key("kimi-code") {
+            config
+                .apps
+                .insert("kimi-code".to_string(), ProviderManager::default());
+            updated = true;
+        }
+
         // 执行 MCP 迁移（v3.6.x → v3.7.0）
         let migrated = config.migrate_mcp_to_unified()?;
         if migrated {
@@ -702,6 +722,7 @@ impl MultiAppConfig {
             AppType::OpenCode => &self.mcp.opencode,
             AppType::OpenClaw => &self.mcp.openclaw,
             AppType::Hermes => &self.mcp.hermes,
+            AppType::KimiCode => &self.mcp.claude,
         }
     }
 
@@ -716,6 +737,7 @@ impl MultiAppConfig {
             AppType::OpenCode => &mut self.mcp.opencode,
             AppType::OpenClaw => &mut self.mcp.openclaw,
             AppType::Hermes => &mut self.mcp.hermes,
+            AppType::KimiCode => &mut self.mcp.claude,
         }
     }
 
@@ -846,6 +868,7 @@ impl MultiAppConfig {
             AppType::OpenCode => &mut config.prompts.opencode.prompts,
             AppType::OpenClaw => &mut config.prompts.openclaw.prompts,
             AppType::Hermes => &mut config.prompts.hermes.prompts,
+            AppType::KimiCode => return Ok(false),
         };
 
         prompts.insert(id, prompt);
@@ -889,6 +912,7 @@ impl MultiAppConfig {
                 AppType::OpenCode => &self.mcp.opencode.servers,
                 AppType::OpenClaw => continue, // OpenClaw MCP is still in development, skip
                 AppType::Hermes => continue,   // Hermes didn't exist in v3.6.x, skip
+                AppType::KimiCode => continue, // Kimi Code has its own config format
             };
 
             for (id, entry) in old_servers {

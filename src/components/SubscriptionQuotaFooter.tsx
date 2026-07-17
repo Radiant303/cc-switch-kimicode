@@ -75,6 +75,27 @@ function formatResetTime(
   return t("subscription.resetsIn", { time });
 }
 
+function formatQuotaNumber(value: number): string {
+  return new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function formatQuotaDetail(
+  tier: QuotaTier,
+  t: (key: string, options?: Record<string, unknown>) => string,
+): string | null {
+  if (tier.used == null || tier.limit == null) return null;
+  return t("subscription.quotaDetail", {
+    used: formatQuotaNumber(tier.used),
+    limit: formatQuotaNumber(tier.limit),
+    remaining: formatQuotaNumber(
+      tier.remaining ?? Math.max(0, tier.limit - tier.used),
+    ),
+    unit: tier.unit || "token",
+  });
+}
+
 /** 不需要在 inline 模式显示的 tier */
 const HIDDEN_INLINE_TIERS = new Set(["seven_day_sonnet"]);
 
@@ -313,6 +334,7 @@ export const TierBadge: React.FC<{
     ? t(TIER_I18N_KEYS[tier.name])
     : tier.name;
   const countdown = countdownStr(tier.resetsAt);
+  const detail = formatQuotaDetail(tier, t);
 
   const hasUsd = tier.usedValueUsd != null && tier.maxValueUsd != null;
 
@@ -324,6 +346,14 @@ export const TierBadge: React.FC<{
       >
         {t("subscription.utilization", { value: Math.round(tier.utilization) })}
       </span>
+      {detail && (
+        <span
+          className="text-muted-foreground/70 ml-0.5 max-w-[220px] truncate"
+          title={detail}
+        >
+          ({detail})
+        </span>
+      )}
       {hasUsd && (
         <span className="text-muted-foreground/60">
           (${tier.usedValueUsd!.toFixed(2)}/${tier.maxValueUsd!.toFixed(2)})
@@ -348,48 +378,56 @@ const TierBar: React.FC<{
     ? t(TIER_I18N_KEYS[tier.name])
     : tier.name;
   const resetText = formatResetTime(tier.resetsAt, t);
+  const detail = formatQuotaDetail(tier, t);
 
   return (
-    <div className="flex items-center gap-3 text-xs">
-      <span
-        className="text-gray-500 dark:text-gray-400 min-w-0 font-medium"
-        style={{ width: "25%" }}
-      >
-        {label}
-      </span>
-
-      {/* 进度条 */}
-      <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
-        <div
-          className={`h-full rounded-full transition-all ${
-            tier.utilization >= 90
-              ? "bg-red-500"
-              : tier.utilization >= 70
-                ? "bg-orange-500"
-                : "bg-green-500"
-          }`}
-          style={{ width: `${Math.min(tier.utilization, 100)}%` }}
-        />
-      </div>
-
-      <div
-        className="flex items-center gap-2 flex-shrink-0"
-        style={{ width: "30%" }}
-      >
+    <div className="flex flex-col gap-1 text-xs">
+      <div className="flex items-center gap-3">
         <span
-          className={`font-semibold tabular-nums ${utilizationColor(tier.utilization)}`}
+          className="text-gray-500 dark:text-gray-400 min-w-0 font-medium"
+          style={{ width: "25%" }}
         >
-          {Math.round(tier.utilization)}%
+          {label}
         </span>
-        {resetText && (
+
+        {/* 进度条 */}
+        <div className="flex-1 h-2 bg-gray-100 dark:bg-gray-800 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all ${
+              tier.utilization >= 90
+                ? "bg-red-500"
+                : tier.utilization >= 70
+                  ? "bg-orange-500"
+                  : "bg-green-500"
+            }`}
+            style={{ width: `${Math.min(tier.utilization, 100)}%` }}
+          />
+        </div>
+
+        <div
+          className="flex items-center gap-2 flex-shrink-0"
+          style={{ width: "30%" }}
+        >
           <span
-            className="text-[10px] text-muted-foreground/70 truncate"
-            title={resetText}
+            className={`font-semibold tabular-nums ${utilizationColor(tier.utilization)}`}
           >
-            {resetText}
+            {Math.round(tier.utilization)}%
           </span>
-        )}
+          {resetText && (
+            <span
+              className="text-[10px] text-muted-foreground/70 truncate"
+              title={resetText}
+            >
+              {resetText}
+            </span>
+          )}
+        </div>
       </div>
+      {detail && (
+        <div className="ml-[25%] text-[11px] text-muted-foreground/80 tabular-nums">
+          {detail}
+        </div>
+      )}
     </div>
   );
 };
