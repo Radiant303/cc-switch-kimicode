@@ -1453,7 +1453,8 @@
       "claude": "Claude Code",
       "codex": "Codex",
       "gemini": "Gemini",
-      "opencode": "OpenCode"
+      "opencode": "OpenCode",
+      "kimi-code": "Kimi Code"
     },
     "rawInputLabel": "原始",
     "dataSources": "資料來源",
@@ -1463,7 +1464,8 @@
       "codex_db": "Codex 資料庫",
       "codex_session": "Codex 工作階段日誌",
       "gemini_session": "Gemini 工作階段日誌",
-      "opencode_session": "OpenCode 工作階段日誌"
+      "opencode_session": "OpenCode 工作階段日誌",
+      "kimi_session": "Kimi 工作階段日誌"
     },
     "sessionSync": {
       "trigger": "同步工作階段日誌",
@@ -2945,6 +2947,7 @@
     "weeklyLimit": "每週",
     "monthly": "每月",
     "copilotPremium": "進階請求",
+    "planUsage": "方案用量",
     "utilization": "{{value}}%",
     "quotaDetail": "已用 {{used}} / {{limit}}（剩餘 {{remaining}} {{unit}}）",
     "resetsIn": "{{time}} 後重設",

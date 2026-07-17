@@ -185,10 +185,15 @@ export function ProviderCard({
   const fallbackUrlText = t("provider.notConfigured", {
     defaultValue: "未配置接口地址",
   });
+  const displayName =
+    appId === "kimi-code" && !provider.name.trim() ? "KIMI" : provider.name;
 
   const displayUrl = useMemo(() => {
+    if (appId === "kimi-code" && !provider.websiteUrl?.trim()) {
+      return "https://kimi.com";
+    }
     return extractApiUrl(provider, fallbackUrlText);
-  }, [provider, fallbackUrlText]);
+  }, [appId, provider, fallbackUrlText]);
 
   const isClickableUrl = useMemo(() => {
     if (provider.notes?.trim()) {
@@ -364,7 +369,7 @@ export function ProviderCard({
                 provider.icon,
                 provider.iconColor,
               )}
-              name={provider.name}
+              name={displayName}
               color={provider.iconColor}
               size={20}
             />
@@ -373,7 +378,7 @@ export function ProviderCard({
           <div className="min-w-0 flex-1 space-y-1">
             <div className="flex flex-wrap items-center gap-2 min-h-7">
               <h3 className="text-base font-semibold leading-none">
-                {provider.name}
+                {displayName}
               </h3>
 
               {isOmo && (

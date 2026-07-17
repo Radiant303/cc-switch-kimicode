@@ -99,6 +99,98 @@ function formatQuotaDetail(
 /** 不需要在 inline 模式显示的 tier */
 const HIDDEN_INLINE_TIERS = new Set(["seven_day_sonnet"]);
 
+function kimiProgressClass(utilization: number): string {
+  if (utilization >= 90) return "bg-rose-500 dark:bg-rose-400";
+  if (utilization >= 70) return "bg-amber-500 dark:bg-amber-400";
+  return "bg-emerald-500 dark:bg-emerald-400";
+}
+
+const KimiQuotaInline: React.FC<{
+  quota: SubscriptionQuota;
+  tiers: QuotaTier[];
+  loading: boolean;
+  refetch: () => void;
+  now: number;
+  t: (key: string, options?: Record<string, unknown>) => string;
+}> = ({ quota, tiers, loading, refetch, now, t }) => (
+  <div className="w-[250px] max-w-full rounded-lg border border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-card to-card px-2.5 py-2 shadow-sm dark:border-sky-900/70 dark:from-sky-950/30">
+    <div className="mb-1.5 flex items-center justify-between gap-2">
+      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700/80 dark:text-sky-300/80">
+        {t("subscription.planUsage", { defaultValue: "Plan usage" })}
+      </span>
+      <div className="flex items-center gap-1">
+        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+          <Clock size={10} />
+          {quota.queriedAt
+            ? formatRelativeTime(quota.queriedAt, now, t)
+            : t("usage.never", { defaultValue: "从未更新" })}
+        </span>
+        <button
+          onClick={(event) => {
+            event.stopPropagation();
+            refetch();
+          }}
+          disabled={loading}
+          className="rounded p-1 text-muted-foreground transition-colors hover:bg-sky-100/80 disabled:opacity-50 dark:hover:bg-sky-900/50"
+          title={t("subscription.refresh")}
+        >
+          <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
+        </button>
+      </div>
+    </div>
+
+    <div className="space-y-1.5">
+      {tiers.map((tier) => {
+        const utilization = Math.min(Math.max(tier.utilization, 0), 100);
+        const countdown = countdownStr(tier.resetsAt);
+        const label = TIER_I18N_KEYS[tier.name]
+          ? t(TIER_I18N_KEYS[tier.name])
+          : tier.name;
+
+        return (
+          <div key={tier.name} className="flex items-center gap-2">
+            <span className="w-10 shrink-0 text-[11px] font-medium text-foreground/80">
+              {label}
+            </span>
+            <div
+              className="relative h-2.5 w-[82px] shrink-0 overflow-hidden rounded-[3px] bg-slate-100/80 text-slate-300 dark:bg-slate-800/70 dark:text-slate-600"
+              role="progressbar"
+              aria-label={label}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={Math.round(utilization)}
+            >
+              <div
+                className="absolute inset-0 opacity-80"
+                style={{
+                  backgroundImage:
+                    "radial-gradient(circle, currentColor 0.75px, transparent 0.85px)",
+                  backgroundSize: "4px 4px",
+                }}
+              />
+              <div
+                className={`absolute inset-y-0 left-0 ${kimiProgressClass(utilization)}`}
+                style={{ width: `${Math.max(utilization, 2)}%` }}
+              />
+            </div>
+            <span
+              className={`w-8 shrink-0 text-right text-[11px] font-semibold tabular-nums ${utilizationColor(utilization)}`}
+            >
+              {Math.round(utilization)}%
+            </span>
+            {countdown && (
+              <span className="ml-auto flex min-w-0 items-center gap-1 text-[10px] tabular-nums text-muted-foreground/75">
+                <Clock size={10} />
+                <span>{countdown}</span>
+              </span>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  </div>
+);
+
 /** 格式化相对时间（与 UsageFooter 一致） */
 function formatRelativeTime(
   timestamp: number,
@@ -235,9 +327,23 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
     (tier) => tier.name in TIER_I18N_KEYS,
   );
   if (tiers.length === 0) return null;
+  const isKimiCode = appIdForExpiredHint === "kimi-code";
 
   // ── inline 模式：紧凑两行显示 ──
   if (inline) {
+    if (isKimiCode) {
+      return (
+        <KimiQuotaInline
+          quota={quota}
+          tiers={tiers.filter((tier) => !HIDDEN_INLINE_TIERS.has(tier.name))}
+          loading={loading}
+          refetch={refetch}
+          now={now}
+          t={t}
+        />
+      );
+    }
+
     return (
       <div className="flex flex-col items-end gap-1 text-xs whitespace-nowrap flex-shrink-0">
         {/* 第一行：查询时间 + 刷新 */}
@@ -262,7 +368,7 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
         </div>
 
         {/* 第二行：各 tier 使用百分比 */}
-        <div className="flex items-center gap-2">
+        <div className={`flex items-center ${isKimiCode ? "gap-1" : "gap-2"}`}>
           {tiers
             .filter((tier) => !HIDDEN_INLINE_TIERS.has(tier.name))
             .map((tier) => (
@@ -300,7 +406,7 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
 
       <div className="flex flex-col gap-2">
         {tiers.map((tier) => (
-          <TierBar key={tier.name} tier={tier} t={t} />
+          <TierBar key={tier.name} tier={tier} t={t} hideDetail={isKimiCode} />
         ))}
       </div>
 
@@ -373,7 +479,8 @@ export const TierBadge: React.FC<{
 const TierBar: React.FC<{
   tier: QuotaTier;
   t: (key: string, options?: Record<string, unknown>) => string;
-}> = ({ tier, t }) => {
+  hideDetail?: boolean;
+}> = ({ tier, t, hideDetail = false }) => {
   const label = TIER_I18N_KEYS[tier.name]
     ? t(TIER_I18N_KEYS[tier.name])
     : tier.name;
@@ -423,7 +530,7 @@ const TierBar: React.FC<{
           )}
         </div>
       </div>
-      {detail && (
+      {!hideDetail && detail && (
         <div className="ml-[25%] text-[11px] text-muted-foreground/80 tabular-nums">
           {detail}
         </div>

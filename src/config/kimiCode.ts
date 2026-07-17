@@ -1,5 +1,9 @@
 /** Kimi Code 的默认 config.toml。表单在 Provider settingsConfig 中
  * 以 { config: string } 的 JSON 形式暂存，提交时由后端写回 TOML 文件。 */
+export const KIMI_CODE_DEFAULT_PROVIDER_NAME = "KIMI";
+export const KIMI_CODE_DEFAULT_WEBSITE = "https://kimi.com";
+export const KIMI_CODE_DEFAULT_ICON = "kimi";
+
 export const KIMI_CODE_DEFAULT_TOML = `default_model = "managed:kimi-code/kimi-for-coding"
 
 [providers."managed:kimi-code"]

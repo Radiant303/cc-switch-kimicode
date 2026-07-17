@@ -1481,7 +1481,8 @@
       "claude": "Claude Code",
       "codex": "Codex",
       "gemini": "Gemini",
-      "opencode": "OpenCode"
+      "opencode": "OpenCode",
+      "kimi-code": "Kimi Code"
     },
     "rawInputLabel": "Raw",
     "dataSources": "Data Sources",
@@ -1491,7 +1492,8 @@
       "codex_db": "Codex DB",
       "codex_session": "Codex Session",
       "gemini_session": "Gemini Session",
-      "opencode_session": "OpenCode Session"
+      "opencode_session": "OpenCode Session",
+      "kimi_session": "Kimi Session"
     },
     "sessionSync": {
       "trigger": "Sync session logs",
@@ -2973,6 +2975,7 @@
     "weeklyLimit": "Weekly",
     "monthly": "Monthly",
     "copilotPremium": "Premium",
+    "planUsage": "Plan usage",
     "utilization": "{{value}}%",
     "quotaDetail": "{{used}} / {{limit}} ({{remaining}} remaining {{unit}}s)",
     "resetsIn": "Resets in {{time}}",

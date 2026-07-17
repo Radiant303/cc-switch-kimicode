@@ -20,4 +20,9 @@ describe("resolveProviderIcon", () => {
   it("normalizes an empty icon to the initials fallback", () => {
     expect(resolveProviderIcon("grokbuild", "  ", "")).toBeUndefined();
   });
+
+  it("uses the Kimi brand icon when a Kimi provider has no saved icon", () => {
+    expect(resolveProviderIcon("kimi-code", "", "")).toBe("kimi");
+    expect(resolveProviderIcon("kimi-code")).toBe("kimi");
+  });
 });

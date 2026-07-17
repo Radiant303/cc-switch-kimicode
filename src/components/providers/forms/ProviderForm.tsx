@@ -125,6 +125,9 @@ import { useOpenClawLiveProviderIds } from "@/hooks/useOpenClaw";
 import { useHermesLiveProviderIds } from "@/hooks/useHermes";
 import {
   KIMI_CODE_DEFAULT_CONFIG,
+  KIMI_CODE_DEFAULT_ICON,
+  KIMI_CODE_DEFAULT_PROVIDER_NAME,
+  KIMI_CODE_DEFAULT_WEBSITE,
   extractKimiCodeToml,
   serializeKimiCodeToml,
 } from "@/config/kimiCode";
@@ -384,8 +387,12 @@ function ProviderFormFull({
 
   const defaultValues: ProviderFormData = useMemo(
     () => ({
-      name: initialData?.name ?? "",
-      websiteUrl: initialData?.websiteUrl ?? "",
+      name:
+        initialData?.name ??
+        (appId === "kimi-code" ? KIMI_CODE_DEFAULT_PROVIDER_NAME : ""),
+      websiteUrl:
+        initialData?.websiteUrl ??
+        (appId === "kimi-code" ? KIMI_CODE_DEFAULT_WEBSITE : ""),
       notes: initialData?.notes ?? "",
       settingsConfig: initialData?.settingsConfig
         ? JSON.stringify(initialData.settingsConfig, null, 2)
@@ -402,7 +409,9 @@ function ProviderFormFull({
                   : appId === "kimi-code"
                     ? KIMI_CODE_DEFAULT_CONFIG
                     : CLAUDE_DEFAULT_CONFIG,
-      icon: initialData?.icon ?? "",
+      icon:
+        initialData?.icon ||
+        (appId === "kimi-code" ? KIMI_CODE_DEFAULT_ICON : ""),
       iconColor: initialData?.iconColor ?? "",
     }),
     [initialData, appId],

@@ -1481,7 +1481,8 @@
       "claude": "Claude Code",
       "codex": "Codex",
       "gemini": "Gemini",
-      "opencode": "OpenCode"
+      "opencode": "OpenCode",
+      "kimi-code": "Kimi Code"
     },
     "rawInputLabel": "原始",
     "dataSources": "数据来源",
@@ -1491,7 +1492,8 @@
       "codex_db": "Codex 数据库",
       "codex_session": "Codex 会话日志",
       "gemini_session": "Gemini 会话日志",
-      "opencode_session": "OpenCode 会话日志"
+      "opencode_session": "OpenCode 会话日志",
+      "kimi_session": "Kimi 会话日志"
     },
     "sessionSync": {
       "trigger": "同步会话日志",
@@ -2973,6 +2975,7 @@
     "weeklyLimit": "每周",
     "monthly": "每月",
     "copilotPremium": "高级请求",
+    "planUsage": "计划用量",
     "utilization": "{{value}}%",
     "quotaDetail": "已用 {{used}} / {{limit}}（剩余 {{remaining}} {{unit}}）",
     "resetsIn": "{{time}}后重置",

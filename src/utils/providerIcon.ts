@@ -12,7 +12,7 @@ export function resolveProviderIcon(
   iconColor?: string,
 ): string | undefined {
   const normalizedIcon = icon?.trim();
-  if (!normalizedIcon) return undefined;
+  if (!normalizedIcon) return appId === "kimi-code" ? "kimi" : undefined;
 
   if (
     appId === "grokbuild" &&
