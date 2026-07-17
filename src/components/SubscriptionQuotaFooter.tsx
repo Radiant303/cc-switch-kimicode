@@ -140,7 +140,7 @@ const KimiQuotaInline: React.FC<{
       </button>
     </div>
 
-    <div className="flex items-center gap-3">
+    <div className="flex flex-col gap-1">
       {tiers.map((tier) => {
         const utilization = Math.min(Math.max(tier.utilization, 0), 100);
         const countdown = countdownStr(tier.resetsAt);
@@ -151,10 +151,12 @@ const KimiQuotaInline: React.FC<{
         const progressWidth = utilization === 0 ? 0 : Math.max(utilization, 2);
 
         return (
-          <div key={tier.name} className="flex items-center gap-1">
-            <span className="text-gray-500 dark:text-gray-400">{label}:</span>
+          <div key={tier.name} className="flex items-center gap-1.5">
+            <span className="w-5 text-gray-500 dark:text-gray-400">
+              {label}:
+            </span>
             <div
-              className="relative h-1.5 w-11 overflow-hidden rounded-sm bg-muted/60 text-muted-foreground/25"
+              className="relative h-2 w-[88px] overflow-hidden rounded-[3px] bg-muted/60 text-muted-foreground/25"
               role="progressbar"
               aria-label={label}
               aria-valuemin={0}
@@ -175,12 +177,12 @@ const KimiQuotaInline: React.FC<{
               />
             </div>
             <span
-              className={`font-semibold tabular-nums ${utilizationColor(utilization)}`}
+              className={`w-8 text-right font-semibold tabular-nums ${utilizationColor(utilization)}`}
             >
               {Math.round(utilization)}%
             </span>
             {countdown && (
-              <span className="ml-0.5 flex items-center gap-px text-muted-foreground/60">
+              <span className="flex items-center gap-px text-muted-foreground/60">
                 <Clock size={10} />
                 {countdown}
               </span>
