@@ -2975,7 +2975,6 @@
     "weeklyLimit": "每周",
     "monthly": "每月",
     "copilotPremium": "高级请求",
-    "planUsage": "计划用量",
     "utilization": "{{value}}%",
     "quotaDetail": "已用 {{used}} / {{limit}}（剩余 {{remaining}} {{unit}}）",
     "resetsIn": "{{time}}后重置",

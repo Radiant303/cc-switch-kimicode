@@ -2975,7 +2975,6 @@
     "weeklyLimit": "Weekly",
     "monthly": "Monthly",
     "copilotPremium": "Premium",
-    "planUsage": "Plan usage",
     "utilization": "{{value}}%",
     "quotaDetail": "{{used}} / {{limit}} ({{remaining}} remaining {{unit}}s)",
     "resetsIn": "Resets in {{time}}",

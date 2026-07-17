@@ -99,6 +99,12 @@ function formatQuotaDetail(
 /** 不需要在 inline 模式显示的 tier */
 const HIDDEN_INLINE_TIERS = new Set(["seven_day_sonnet"]);
 
+function kimiTierLabel(name: string, fallback: string): string {
+  if (name === "five_hour") return "5h";
+  if (name === "seven_day" || name === "weekly_limit") return "7d";
+  return fallback;
+}
+
 function kimiProgressClass(utilization: number): string {
   if (utilization >= 90) return "bg-rose-500 dark:bg-rose-400";
   if (utilization >= 70) return "bg-amber-500 dark:bg-amber-400";
@@ -113,47 +119,42 @@ const KimiQuotaInline: React.FC<{
   now: number;
   t: (key: string, options?: Record<string, unknown>) => string;
 }> = ({ quota, tiers, loading, refetch, now, t }) => (
-  <div className="w-[250px] max-w-full rounded-lg border border-sky-200/80 bg-gradient-to-br from-sky-50/90 via-card to-card px-2.5 py-2 shadow-sm dark:border-sky-900/70 dark:from-sky-950/30">
-    <div className="mb-1.5 flex items-center justify-between gap-2">
-      <span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-sky-700/80 dark:text-sky-300/80">
-        {t("subscription.planUsage", { defaultValue: "Plan usage" })}
+  <div className="flex flex-col items-end gap-1 whitespace-nowrap text-xs">
+    <div className="flex items-center gap-2 justify-end">
+      <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
+        <Clock size={10} />
+        {quota.queriedAt
+          ? formatRelativeTime(quota.queriedAt, now, t)
+          : t("usage.never", { defaultValue: "从未更新" })}
       </span>
-      <div className="flex items-center gap-1">
-        <span className="flex items-center gap-1 text-[10px] text-muted-foreground/70">
-          <Clock size={10} />
-          {quota.queriedAt
-            ? formatRelativeTime(quota.queriedAt, now, t)
-            : t("usage.never", { defaultValue: "从未更新" })}
-        </span>
-        <button
-          onClick={(event) => {
-            event.stopPropagation();
-            refetch();
-          }}
-          disabled={loading}
-          className="rounded p-1 text-muted-foreground transition-colors hover:bg-sky-100/80 disabled:opacity-50 dark:hover:bg-sky-900/50"
-          title={t("subscription.refresh")}
-        >
-          <RefreshCw size={11} className={loading ? "animate-spin" : ""} />
-        </button>
-      </div>
+      <button
+        onClick={(event) => {
+          event.stopPropagation();
+          refetch();
+        }}
+        disabled={loading}
+        className="p-1 rounded hover:bg-muted transition-colors disabled:opacity-50 flex-shrink-0 text-muted-foreground"
+        title={t("subscription.refresh")}
+      >
+        <RefreshCw size={12} className={loading ? "animate-spin" : ""} />
+      </button>
     </div>
 
-    <div className="space-y-1.5">
+    <div className="flex items-center gap-3">
       {tiers.map((tier) => {
         const utilization = Math.min(Math.max(tier.utilization, 0), 100);
         const countdown = countdownStr(tier.resetsAt);
-        const label = TIER_I18N_KEYS[tier.name]
+        const translatedLabel = TIER_I18N_KEYS[tier.name]
           ? t(TIER_I18N_KEYS[tier.name])
           : tier.name;
+        const label = kimiTierLabel(tier.name, translatedLabel);
+        const progressWidth = utilization === 0 ? 0 : Math.max(utilization, 2);
 
         return (
-          <div key={tier.name} className="flex items-center gap-2">
-            <span className="w-10 shrink-0 text-[11px] font-medium text-foreground/80">
-              {label}
-            </span>
+          <div key={tier.name} className="flex items-center gap-1">
+            <span className="text-gray-500 dark:text-gray-400">{label}:</span>
             <div
-              className="relative h-2.5 w-[82px] shrink-0 overflow-hidden rounded-[3px] bg-slate-100/80 text-slate-300 dark:bg-slate-800/70 dark:text-slate-600"
+              className="relative h-1.5 w-11 overflow-hidden rounded-sm bg-muted/60 text-muted-foreground/25"
               role="progressbar"
               aria-label={label}
               aria-valuemin={0}
@@ -161,27 +162,27 @@ const KimiQuotaInline: React.FC<{
               aria-valuenow={Math.round(utilization)}
             >
               <div
-                className="absolute inset-0 opacity-80"
+                className="absolute inset-0"
                 style={{
                   backgroundImage:
-                    "radial-gradient(circle, currentColor 0.75px, transparent 0.85px)",
+                    "radial-gradient(circle, currentColor 0.6px, transparent 0.75px)",
                   backgroundSize: "4px 4px",
                 }}
               />
               <div
                 className={`absolute inset-y-0 left-0 ${kimiProgressClass(utilization)}`}
-                style={{ width: `${Math.max(utilization, 2)}%` }}
+                style={{ width: `${progressWidth}%` }}
               />
             </div>
             <span
-              className={`w-8 shrink-0 text-right text-[11px] font-semibold tabular-nums ${utilizationColor(utilization)}`}
+              className={`font-semibold tabular-nums ${utilizationColor(utilization)}`}
             >
               {Math.round(utilization)}%
             </span>
             {countdown && (
-              <span className="ml-auto flex min-w-0 items-center gap-1 text-[10px] tabular-nums text-muted-foreground/75">
+              <span className="ml-0.5 flex items-center gap-px text-muted-foreground/60">
                 <Clock size={10} />
-                <span>{countdown}</span>
+                {countdown}
               </span>
             )}
           </div>
@@ -368,7 +369,7 @@ export const SubscriptionQuotaView: React.FC<SubscriptionQuotaViewProps> = ({
         </div>
 
         {/* 第二行：各 tier 使用百分比 */}
-        <div className={`flex items-center ${isKimiCode ? "gap-1" : "gap-2"}`}>
+        <div className="flex items-center gap-2">
           {tiers
             .filter((tier) => !HIDDEN_INLINE_TIERS.has(tier.name))
             .map((tier) => (

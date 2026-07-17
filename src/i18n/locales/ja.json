@@ -2975,7 +2975,6 @@
     "weeklyLimit": "週間",
     "monthly": "月間",
     "copilotPremium": "プレミアム",
-    "planUsage": "プラン使用量",
     "utilization": "{{value}}%",
     "quotaDetail": "{{used}} / {{limit}}（残り {{remaining}} {{unit}}）",
     "resetsIn": "{{time}}後にリセット",
