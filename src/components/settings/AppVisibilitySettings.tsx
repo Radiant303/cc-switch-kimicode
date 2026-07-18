@@ -139,7 +139,14 @@ function AppButton({
           : "text-muted-foreground hover:text-foreground hover:bg-muted",
       )}
     >
-      <ProviderIcon icon={icon} name={name} size={14} />
+      <ProviderIcon
+        icon={icon}
+        name={name}
+        size={14}
+        // 选中态为蓝底白字，品牌色图标（如 kimi 的蓝）会融进背景；
+        // 强制白色 fill 可同时覆盖 currentColor 与 SVG 内硬编码的 fill 属性
+        className={cn(active && "[&_path]:!fill-white")}
+      />
       {children}
     </Button>
   );
