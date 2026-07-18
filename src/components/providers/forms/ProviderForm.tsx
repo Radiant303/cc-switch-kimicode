@@ -7,7 +7,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Form, FormField, FormItem, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { providerSchema, type ProviderFormData } from "@/lib/schemas/provider";
 import {
   buildLocalProxyRequestOverrides,
@@ -2414,26 +2413,27 @@ function ProviderFormFull({
           ) : appId === "kimi-code" ? (
             <>
               <div className="space-y-2">
-                <Label htmlFor="kimi-code-config">
+                <Label>
                   {t("kimiCode.form.config", {
                     defaultValue: "Kimi Code config.toml",
                   })}
                 </Label>
-                <Textarea
-                  id="kimi-code-config"
+                <JsonEditor
                   value={kimiCodeToml}
-                  onChange={(event) =>
+                  onChange={(value) =>
                     form.setValue(
                       "settingsConfig",
-                      serializeKimiCodeToml(event.target.value),
+                      serializeKimiCodeToml(value),
                       { shouldDirty: true },
                     )
                   }
                   placeholder={t("kimiCode.form.configPlaceholder", {
                     defaultValue: "default_model = \"managed:kimi-code/kimi-for-coding\"",
                   })}
-                  className="min-h-[360px] resize-y font-mono text-xs leading-5"
-                  spellCheck={false}
+                  rows={20}
+                  showValidation={false}
+                  language="toml"
+                  darkMode={isDarkMode}
                 />
                 <p className="text-xs text-muted-foreground">
                   {t("kimiCode.form.configHint", {

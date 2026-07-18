@@ -2,6 +2,8 @@ import React, { useRef, useEffect, useMemo } from "react";
 import { EditorView, basicSetup } from "codemirror";
 import { json } from "@codemirror/lang-json";
 import { javascript } from "@codemirror/lang-javascript";
+import { StreamLanguage } from "@codemirror/language";
+import { toml } from "@codemirror/legacy-modes/mode/toml";
 import { oneDark } from "@codemirror/theme-one-dark";
 import { EditorState } from "@codemirror/state";
 import { placeholder } from "@codemirror/view";
@@ -19,7 +21,7 @@ interface JsonEditorProps {
   darkMode?: boolean;
   rows?: number;
   showValidation?: boolean;
-  language?: "json" | "javascript";
+  language?: "json" | "javascript" | "toml";
   height?: string | number;
   showMinimap?: boolean; // 添加此属性以防未来使用
 }
@@ -137,7 +139,11 @@ const JsonEditor: React.FC<JsonEditorProps> = ({
 
     const extensions = [
       basicSetup,
-      language === "javascript" ? javascript() : json(),
+      language === "javascript"
+        ? javascript()
+        : language === "toml"
+          ? StreamLanguage.define(toml)
+          : json(),
       placeholder(placeholderText || ""),
       baseTheme,
       sizingTheme,
